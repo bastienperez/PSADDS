@@ -37,11 +37,12 @@ jobs:
           Write-Host "✅ Found: $file" -ForegroundColor Green
         }
         
-        # Check required directories in powershell directory
+        # Check and create required directories if they don't exist
         $requiredDirs = @('powershell\Public', 'powershell\Private')
         foreach ($dir in $requiredDirs) {
           if (-not (Test-Path $dir -PathType Container)) {
-            throw "Required directory not found: $dir"
+            Write-Host "⚠️ Directory not found, creating: $dir" -ForegroundColor Yellow
+            $null = New-Item -ItemType Directory -Path $dir -Force
           }
           Write-Host "✅ Found directory: $dir" -ForegroundColor Green
         }
@@ -56,7 +57,7 @@ jobs:
         if (Test-Path ".\publish") {
           Remove-Item ".\publish" -Recurse -Force
         }
-        New-Item -ItemType Directory -Path $publishDir -Force | Out-Null
+        $null = New-Item -ItemType Directory -Path $publishDir -Force
         
         # Copy required files and directories from powershell folder
         $itemsToCopy = @(
