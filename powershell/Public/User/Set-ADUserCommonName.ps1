@@ -27,6 +27,13 @@
     .PARAMETER Server
     Optional domain controller to target.
 
+    .PARAMETER GenerateCmdlets
+    When specified, generates the equivalent Rename-ADObject commands and saves them to a file instead of executing them.
+
+    .PARAMETER OutputFile
+    Path to the output file where generated commands are saved.
+    Default: a timestamped .ps1 file in the current directory.
+
     .EXAMPLE
     Set-ADUserCommonName -Identity jdoe
 
@@ -37,15 +44,26 @@
 
     Previews renaming every user in the OU so the CN becomes "Surname GivenName".
 
+    .EXAMPLE
+    Get-ADUser -Filter * -SearchBase 'OU=Users,DC=contoso,DC=com' | Set-ADUserCommonName -GenerateCmdlets -OutputFile 'C:\Temp\rename-commands.ps1'
+
+    Generates the Rename-ADObject commands for every user in the OU and saves them to the specified file without executing them.
+
+    .EXAMPLE
+    Get-ADUser -Filter { EmployeeID -like '*' } -Properties EmployeeID | Set-ADUserCommonName
+
+    Renames the CN of all users who have a non-empty EmployeeID.
+
     .LINK
     https://github.com/bastienperez/PSADDS
 #>
+
 function Set-ADUserCommonName {
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
     param (
         [Parameter(Mandatory = $true, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
         [Alias('SamAccountName', 'DistinguishedName', 'ObjectGUID')]
-        [String[]]$Identity,
+        [Object[]]$Identity,
 
         [Parameter(Mandatory = $false)]
         [ValidateSet('GivenNameSurname', 'SurnameGivenName')]
@@ -55,7 +73,13 @@ function Set-ADUserCommonName {
         [String]$Separator = ' ',
 
         [Parameter(Mandatory = $false)]
-        [String]$Server
+        [String]$Server,
+
+        [Parameter(Mandatory = $false)]
+        [switch]$GenerateCmdlets,
+
+        [Parameter(Mandatory = $false)]
+        [String]$OutputFile = "$(Get-Date -Format 'yyyy-MM-dd_HHmmss')-SetADUserCommonName-Commands.ps1"
     )
 
     begin {
@@ -68,12 +92,15 @@ function Set-ADUserCommonName {
         if (-not [string]::IsNullOrWhiteSpace($Server)) {
             $adParams['Server'] = $Server
         }
+
+        $commands = @()
     }
 
     process {
         foreach ($id in $Identity) {
             try {
-                $user = Get-ADUser -Identity $id -Properties GivenName, Surname @adParams -ErrorAction Stop
+                $resolvedId = if ($id -is [Microsoft.ActiveDirectory.Management.ADUser]) { $id.DistinguishedName } else { [string]$id }
+                $user = Get-ADUser -Identity $resolvedId -Properties GivenName, Surname @adParams -ErrorAction Stop
             }
             catch {
                 Write-Warning "[!] Cannot find AD user '$id'. $($_.Exception.Message)"
@@ -101,7 +128,11 @@ function Set-ADUserCommonName {
                 continue
             }
 
-            if ($PSCmdlet.ShouldProcess($user.DistinguishedName, "Rename CN to '$newCN'")) {
+            if ($GenerateCmdlets) {
+                $serverParam = if ($adParams.ContainsKey('Server')) { " -Server '$($adParams['Server'])'" } else { '' }
+                $commands += "Rename-ADObject -Identity '$($user.DistinguishedName)' -NewName '$newCN'$serverParam"
+            }
+            elseif ($PSCmdlet.ShouldProcess($user.DistinguishedName, "Rename CN to '$newCN'")) {
                 try {
                     Rename-ADObject -Identity $user.DistinguishedName -NewName $newCN @adParams -ErrorAction Stop
                     Write-Host -ForegroundColor Green "[OK] '$($user.SamAccountName)' CN set to '$newCN'"
@@ -110,6 +141,14 @@ function Set-ADUserCommonName {
                     Write-Warning "[!] Failed to rename '$($user.SamAccountName)' to '$newCN'. $($_.Exception.Message)"
                 }
             }
+        }
+    }
+
+    end {
+        if ($GenerateCmdlets -and $commands -and $commands.Count -gt 0) {
+            $commands | Out-File -FilePath $OutputFile -Encoding UTF8
+            $fullPath = (Get-Item -LiteralPath $OutputFile).FullName
+            Write-Host -ForegroundColor Cyan "[i] Commands generated in file: $fullPath"
         }
     }
 }
