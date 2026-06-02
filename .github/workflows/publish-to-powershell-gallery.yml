@@ -1,0 +1,181 @@
+name: 📦 publish to powershell gallery
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Module version to publish (leave empty to use current version)'
+        required: false
+        type: string
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    name: Publish PSADDS Module
+    
+    steps:
+    - name: 📥 Checkout Repository
+      uses: actions/checkout@v6
+      
+    - name: 📋 Display Repository Structure
+      shell: pwsh
+      run: |
+        Write-Host "Repository structure:" -ForegroundColor Green
+        Get-ChildItem -Recurse -Name | Where-Object { $_ -match '\.(ps1|psd1|psm1)$' } | Sort-Object
+
+    - name: 🔍 Validate Module Structure
+      shell: pwsh
+      run: |
+        Write-Host "Validating module structure..." -ForegroundColor Yellow
+        
+        # Check required files exist in powershell directory
+        $requiredFiles = @('powershell\PSADDS.psd1', 'powershell\PSADDS.psm1')
+        foreach ($file in $requiredFiles) {
+          if (-not (Test-Path $file)) {
+            throw "Required file not found: $file"
+          }
+          Write-Host "✅ Found: $file" -ForegroundColor Green
+        }
+        
+        # Check required directories in powershell directory
+        $requiredDirs = @('powershell\Public', 'powershell\Private')
+        foreach ($dir in $requiredDirs) {
+          if (-not (Test-Path $dir -PathType Container)) {
+            throw "Required directory not found: $dir"
+          }
+          Write-Host "✅ Found directory: $dir" -ForegroundColor Green
+        }
+
+    - name: 📦 Prepare Module for Publishing
+      shell: pwsh
+      run: |
+        Write-Host "Preparing module for publishing..." -ForegroundColor Yellow
+        
+        # Create temporary publish directory
+        $publishDir = ".\publish\PSADDS"
+        if (Test-Path ".\publish") {
+          Remove-Item ".\publish" -Recurse -Force
+        }
+        New-Item -ItemType Directory -Path $publishDir -Force | Out-Null
+        
+        # Copy required files and directories from powershell folder
+        $itemsToCopy = @(
+          @{ Source = "powershell\PSADDS.psd1"; Destination = "$publishDir\PSADDS.psd1" }
+          @{ Source = "powershell\PSADDS.psm1"; Destination = "$publishDir\PSADDS.psm1" }
+          @{ Source = "powershell\Public"; Destination = "$publishDir\Public" }
+          @{ Source = "powershell\Private"; Destination = "$publishDir\Private" }
+          @{ Source = "README.md"; Destination = "$publishDir\README.md" }
+        )
+        
+        foreach ($item in $itemsToCopy) {
+          if (Test-Path $item.Source) {
+            if (Test-Path $item.Source -PathType Container) {
+              Copy-Item $item.Source -Destination $item.Destination -Recurse -Force
+              Write-Host "✅ Copied directory: $($item.Source)" -ForegroundColor Green
+            } else {
+              Copy-Item $item.Source -Destination $item.Destination -Force
+              Write-Host "✅ Copied file: $($item.Source)" -ForegroundColor Green
+            }
+          } else {
+            Write-Warning "⚠️ Item not found: $($item.Source)"
+          }
+        }
+        
+        Write-Host "📦 Module prepared in: $publishDir" -ForegroundColor Cyan
+
+    - name: 🔧 Update Module Version (if specified)
+      if: ${{ github.event.inputs.version != '' }}
+      shell: pwsh
+      run: |
+        $newVersion = '${{ github.event.inputs.version }}'
+        Write-Host "Updating module version to: $newVersion" -ForegroundColor Yellow
+        
+        $manifestPath = ".\publish\PSADDS\PSADDS.psd1"
+        $content = Get-Content $manifestPath -Raw
+        $content = $content -replace "ModuleVersion\s*=\s*'[^']*'", "ModuleVersion = '$newVersion'"
+        Set-Content -Path $manifestPath -Value $content -Encoding UTF8
+        
+        Write-Host "✅ Version updated to: $newVersion" -ForegroundColor Green
+
+    - name: 📦 Install Required Modules
+      shell: pwsh
+      run: |
+        Write-Host "Installing required modules..." -ForegroundColor Yellow
+        
+        # Read required modules from manifest
+        $manifestPath = ".\publish\PSADDS\PSADDS.psd1"
+        $manifest = Import-PowerShellDataFile $manifestPath
+        
+        if ($manifest.RequiredModules) {
+          foreach ($requiredModule in $manifest.RequiredModules) {
+            Write-Host "Installing module: $requiredModule" -ForegroundColor Cyan
+            try {
+              Install-Module -Name $requiredModule -Force -Scope CurrentUser -SkipPublisherCheck
+              Write-Host "✅ Installed: $requiredModule" -ForegroundColor Green
+            }
+            catch {
+              Write-Warning "⚠️ Failed to install $requiredModule : $_"
+            }
+          }
+        }
+
+    - name: 🧪 Validate Module Manifest
+      shell: pwsh
+      run: |
+        Write-Host "Validating module manifest..." -ForegroundColor Yellow
+        
+        try {
+          $manifestPath = ".\publish\PSADDS\PSADDS.psd1"
+          Test-ModuleManifest -Path $manifestPath -Verbose
+          Write-Host "✅ Module manifest is valid" -ForegroundColor Green
+        }
+        catch {
+          Write-Error "❌ Manifest validation failed: $_"
+          throw
+        }
+
+    - name: 🚀 Publish to PowerShell Gallery
+      env:
+        PS_GALLERY_KEY: ${{ secrets.POWERSHELLGALLERY_KEY }}
+      shell: pwsh
+      run: |
+        Write-Host "Publishing module to PowerShell Gallery..." -ForegroundColor Yellow
+        
+        if (-not $env:PS_GALLERY_KEY) {
+          throw "❌ PowerShell Gallery API key not found. Please set POWERSHELLGALLERY_KEY secret."
+        }
+        
+        try {
+          $publishParams = @{
+            Path = '.\publish\PSADDS'
+            NuGetApiKey = $env:PS_GALLERY_KEY
+            Verbose = $true
+            Force = $true
+          }
+          
+          Write-Host "Publishing with parameters:" -ForegroundColor Cyan
+          Write-Host "Path: $($publishParams.Path)" -ForegroundColor Gray
+          
+          Publish-Module @publishParams
+          
+          Write-Host "🎉 Module published successfully to PowerShell Gallery!" -ForegroundColor Green
+        }
+        catch {
+          Write-Error "❌ Failed to publish module: $_"
+          throw
+        }
+
+    - name: 📋 Publication Summary
+      shell: pwsh
+      run: |
+        Write-Host "📋 Publication Summary" -ForegroundColor Cyan
+        Write-Host "===================" -ForegroundColor Cyan
+        
+        $module = Import-PowerShellDataFile ".\publish\PSADDS\PSADDS.psd1"
+        Write-Host "Module Name: PSADDS" -ForegroundColor White
+        Write-Host "Version: $($module.ModuleVersion)" -ForegroundColor White
+        Write-Host "Author: $($module.Author)" -ForegroundColor White
+        Write-Host "Functions Exported: $($module.FunctionsToExport.Count)" -ForegroundColor White
+        Write-Host "Release Type: Stable" -ForegroundColor Green
+        
+        Write-Host "✅ Module is now available at: https://www.powershellgallery.com/packages/PSADDS" -ForegroundColor Green
