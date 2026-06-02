@@ -130,7 +130,7 @@ function Set-ADUserCommonName {
 
             if ($GenerateCmdlets) {
                 $serverParam = if ($adParams.ContainsKey('Server')) { " -Server '$($adParams['Server'])'" } else { '' }
-                $commands += "Rename-ADObject -Identity '$($user.DistinguishedName)' -NewName '$newCN'$serverParam"
+                $commands += "Rename-ADObject -Identity `"$($user.DistinguishedName)`" -NewName `"$newCN`"$serverParam"
             }
             elseif ($PSCmdlet.ShouldProcess($user.DistinguishedName, "Rename CN to '$newCN'")) {
                 try {
