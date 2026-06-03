@@ -123,7 +123,7 @@ function Set-ADUserCommonName {
             }
 
             # $user.Name is the RDN (the CN value for a user object).
-            if ($user.Name -eq $newCN) {
+            if ($user.Name -ceq $newCN) {
                 Write-Verbose "[i] '$($user.SamAccountName)' CN is already '$newCN', skipping."
                 continue
             }
