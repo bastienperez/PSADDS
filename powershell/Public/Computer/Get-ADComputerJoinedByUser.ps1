@@ -204,26 +204,30 @@ function Get-ADComputerJoinedByUser {
             # A computer sAMAccountName ends with a dollar sign, accept the name without it
             $identityFilter = '(|(sAMAccountName=' + $Identity + ')(sAMAccountName=' + $Identity + '$)(name=' + $Identity + ')(distinguishedName=' + $Identity + ')(userPrincipalName=' + $Identity + '))'
 
-            $identityObject = $null
+            # The result has to be wrapped in an array: an ADObject implements IDictionary, so 'Count' on a
+            # single object returns its number of properties, not 1
+            $identityObjects = @()
 
             try {
-                $identityObject = Get-ADObject -LDAPFilter $identityFilter -Properties objectSid @adParameters
+                $identityObjects = @(Get-ADObject -LDAPFilter $identityFilter -Properties objectSid @adParameters)
             }
             catch {
                 Write-Warning "Unable to resolve the identity '$Identity': $($_.Exception.Message)"
                 return
             }
 
-            if (-not $identityObject) {
+            if ($identityObjects.Count -eq 0) {
                 Write-Warning "No object found for the identity '$Identity'"
                 return
             }
 
-            if ($identityObject.Count -gt 1) {
-                $matchedNames = $identityObject.Name -join ', '
+            if ($identityObjects.Count -gt 1) {
+                $matchedNames = ($identityObjects.Name | Sort-Object) -join ', '
                 Write-Warning "The identity '$Identity' matches several objects ($matchedNames), please be more specific"
                 return
             }
+
+            $identityObject = $identityObjects[0]
 
             if ($identityObject.ObjectClass -eq 'computer') {
                 $targetComputerDN = $identityObject.DistinguishedName
@@ -247,16 +251,18 @@ function Get-ADComputerJoinedByUser {
             $getADObjectParams.SearchBase = $SearchBase
         }
 
-        $computersFound = $null
+        # Same as above, the result is wrapped so that a single computer is not mistaken for a collection
+        $computersFound = @()
 
         try {
-            $computersFound = Get-ADObject @getADObjectParams
+            $computersFound = @(Get-ADObject @getADObjectParams)
         }
         catch {
             Write-Warning "Unable to query the domain: $($_.Exception.Message)"
         }
 
-        if (-not ($computersFound -and $computersFound.Count -gt 0)) {
+        if ($computersFound.Count -eq 0) {
+            Write-Verbose "No computer object matched the search"
             return
         }
 

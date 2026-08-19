@@ -37,7 +37,7 @@
 
     .PARAMETER EventLogSource
     Name of the event log source used to trace the operations in the Application log.
-    Defaults to 'ComputerAccountCleanup'. Set it to an empty string to disable event logging.
+    Defaults to 'Reset-ADComputerAccountSecurity'. Set it to an empty string to disable event logging.
 
     .PARAMETER Force
     Applies the reset without comparing the current state to the expected one. By default, the
@@ -119,7 +119,7 @@ function Reset-ADComputerAccountSecurity {
         [Parameter(Mandatory = $false)]
         [AllowEmptyString()]
         [String]
-        $EventLogSource = 'ComputerAccountCleanup',
+        $EventLogSource = 'Reset-ADComputerAccountSecurity',
 
         [Parameter(Mandatory = $false)]
         [Switch]
@@ -219,19 +219,32 @@ function Reset-ADComputerAccountSecurity {
             Write-Warning -Message 'Simulation mode enabled: no change will be applied.'
         }
 
-        # Register the event log source when missing (requires local administrative rights).
-        if ($isLogEnabled) {
-            try {
-                if (-not [System.Diagnostics.EventLog]::SourceExists($EventLogSource)) {
-                    if ($isSimulation) {
-                        Write-Verbose -Message "[SIMULATION] Event log source '$EventLogSource' would be created in the Application log."
-                    } else {
-                        New-EventLog -LogName 'Application' -Source $EventLogSource -ErrorAction Stop
-                        Write-Verbose -Message "Event log source '$EventLogSource' created in the Application log."
-                    }
+        # Register the event log source when missing (requires local administrative rights). Nothing is
+        # written in simulation mode, so the event log is left alone entirely.
+        if ($isLogEnabled -and -not $isSimulation) {
+
+            # [System.Diagnostics.EventLog]::SourceExists() enumerates every event log, including Security,
+            # which a standard user cannot read: it throws instead of answering. Looking the source up in the
+            # registry gives the same answer without any privilege.
+            $isSourceRegistered = $false
+            $eventLogRootPath   = 'HKLM:\SYSTEM\CurrentControlSet\Services\EventLog'
+
+            foreach ($logKey in (Get-ChildItem -LiteralPath $eventLogRootPath -ErrorAction SilentlyContinue)) {
+                if (Test-Path -LiteralPath (Join-Path -Path $logKey.PSPath -ChildPath $EventLogSource)) {
+                    $isSourceRegistered = $true
+                    break
                 }
-            } catch {
-                Write-Warning -Message "Unable to register the event log source '$EventLogSource': $($_.Exception.Message)"
+            }
+
+            if (-not $isSourceRegistered) {
+                try {
+                    New-EventLog -LogName 'Application' -Source $EventLogSource -ErrorAction Stop
+                    Write-Verbose -Message "Event log source '$EventLogSource' created in the Application log."
+                } catch {
+                    # Every later Write-EventLog would fail the same way, disable the tracing once and for all.
+                    $isLogEnabled = $false
+                    Write-Warning -Message "Unable to register the event log source '$EventLogSource', event log tracing is disabled for this run. Creating a source requires local administrative rights: $($_.Exception.Message)"
+                }
             }
         }
 
