@@ -51,7 +51,10 @@ PowerShellVersion = '5.1'
 # ProcessorArchitecture = ''
 
 # Modules that must be imported into the global environment prior to importing this module
-RequiredModules = @('ActiveDirectory')
+# RequiredModules is intentionally left empty: the ActiveDirectory module ships with RSAT and is not
+# available on the PowerShell Gallery, so declaring it here breaks Test-ModuleManifest and the
+# installation from the Gallery. It is imported on a best effort basis by PSADDS.psm1 instead.
+# RequiredModules = @()
 
 # Assemblies that must be loaded prior to importing this module
 # RequiredAssemblies = @()
