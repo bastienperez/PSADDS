@@ -126,7 +126,7 @@ function Get-ADSchemaClassAttribute {
 
     $getClassParams = $adParameters.Clone()
     $getClassParams.SearchBase = $schemaNamingContext
-    $getClassParams.Filter = "objectClass -eq 'classSchema'"
+    $getClassParams.Filter = "objectCategory -eq 'classSchema'"
     $getClassParams.Properties = @(
         'lDAPDisplayName', 'subClassOf', 'auxiliaryClass', 'systemAuxiliaryClass',
         'mustContain', 'systemMustContain', 'mayContain', 'systemMayContain'
@@ -157,7 +157,7 @@ function Get-ADSchemaClassAttribute {
 
     $getAttributeParams = $adParameters.Clone()
     $getAttributeParams.SearchBase = $schemaNamingContext
-    $getAttributeParams.Filter = "objectClass -eq 'attributeSchema'"
+    $getAttributeParams.Filter = "objectCategory -eq 'attributeSchema'"
     $getAttributeParams.Properties = @('lDAPDisplayName', 'searchFlags', 'systemFlags')
 
     $attributesByName = [System.Collections.Generic.Dictionary[string, object]]::new([System.StringComparer]::OrdinalIgnoreCase)

@@ -70,7 +70,7 @@
     Exports the full schema report.
 
     .OUTPUTS
-    System.Management.Automation.PSCustomObject, one per attributeSchema object.
+    System.Management.Automation.PSCustomObject, one per attributeSchema object, emitted as they are read.
 
     .NOTES
     Version : 2.0 - August 2026. Migrated from the ActiveDirectory-Toolbox repository.
@@ -113,10 +113,10 @@ function Get-ADSchemaAttribute {
 
     # Filtering server side rather than in PowerShell, the schema partition holds thousands of objects
     if ([string]::IsNullOrWhiteSpace($Attribute)) {
-        $filter = "objectClass -eq 'attributeSchema'"
+        $filter = "objectCategory -eq 'attributeSchema'"
     }
     else {
-        $filter = "objectClass -eq 'attributeSchema' -and lDAPDisplayName -like '$Attribute'"
+        $filter = "objectCategory -eq 'attributeSchema' -and lDAPDisplayName -like '$Attribute'"
     }
 
     $properties = @(
@@ -129,8 +129,6 @@ function Get-ADSchemaAttribute {
     $getADObjectParams.SearchBase = $schemaNamingContext
     $getADObjectParams.Filter = $filter
     $getADObjectParams.Properties = $properties
-
-    [System.Collections.Generic.List[PSCustomObject]]$schemaAttributes = @()
 
     try {
         $attributesFound = @(Get-ADObject @getADObjectParams)
@@ -165,38 +163,37 @@ function Get-ADSchemaAttribute {
 
         $isBaseSchemaObject = [bool]($systemFlags -band 0x10)
 
-        $schemaAttributes.Add([PSCustomObject][ordered]@{
-                LdapDisplayName               = $attributeFound.lDAPDisplayName
-                AdminDisplayName              = $attributeFound.adminDisplayName
-                AdminDescription              = $attributeFound.adminDescription
-                AttributeID                   = $attributeFound.attributeID
-                AttributeSyntax               = $attributeFound.attributeSyntax
-                IsSingleValued                = $attributeFound.isSingleValued
-                SystemOnly                    = $attributeFound.systemOnly
-                LinkID                        = $attributeFound.linkID
-                RangeLower                    = $attributeFound.rangeLower
-                RangeUpper                    = $attributeFound.rangeUpper
-                IsMemberOfPartialAttributeSet = [bool]$attributeFound.isMemberOfPartialAttributeSet
-                Confidential                  = $flags.Confidential
-                CanBeConfidential             = (-not $isBaseSchemaObject)
-                IsBaseSchemaObject            = $isBaseSchemaObject
-                RodcFiltered                  = $flags.RodcFiltered
-                NeverAudit                    = $flags.NeverAudit
-                Indexed                       = $flags.Indexed
-                ContainerIndexed              = $flags.ContainerIndexed
-                ANR                           = $flags.ANR
-                PreserveOnDelete              = $flags.PreserveOnDelete
-                CopyOnCopy                    = $flags.CopyOnCopy
-                TupleIndexed                  = $flags.TupleIndexed
-                SubtreeIndexed                = $flags.SubtreeIndexed
-                SearchFlags                   = $flags.SearchFlags
-                SystemFlags                   = $systemFlags
-                DistinguishedName             = $attributeFound.DistinguishedName
-                ObjectGUID                    = $attributeFound.ObjectGUID
-                WhenCreated                   = $attributeFound.whenCreated
-                WhenChanged                   = $attributeFound.whenChanged
-            })
+        # Emitted one by one rather than collected first, so the results start showing immediately
+        [PSCustomObject][ordered]@{
+            LdapDisplayName               = $attributeFound.lDAPDisplayName
+            AdminDisplayName              = $attributeFound.adminDisplayName
+            AdminDescription              = $attributeFound.adminDescription
+            AttributeID                   = $attributeFound.attributeID
+            AttributeSyntax               = $attributeFound.attributeSyntax
+            IsSingleValued                = $attributeFound.isSingleValued
+            SystemOnly                    = $attributeFound.systemOnly
+            LinkID                        = $attributeFound.linkID
+            RangeLower                    = $attributeFound.rangeLower
+            RangeUpper                    = $attributeFound.rangeUpper
+            IsMemberOfPartialAttributeSet = [bool]$attributeFound.isMemberOfPartialAttributeSet
+            Confidential                  = $flags.Confidential
+            CanBeConfidential             = (-not $isBaseSchemaObject)
+            IsBaseSchemaObject            = $isBaseSchemaObject
+            RodcFiltered                  = $flags.RodcFiltered
+            NeverAudit                    = $flags.NeverAudit
+            Indexed                       = $flags.Indexed
+            ContainerIndexed              = $flags.ContainerIndexed
+            ANR                           = $flags.ANR
+            PreserveOnDelete              = $flags.PreserveOnDelete
+            CopyOnCopy                    = $flags.CopyOnCopy
+            TupleIndexed                  = $flags.TupleIndexed
+            SubtreeIndexed                = $flags.SubtreeIndexed
+            SearchFlags                   = $flags.SearchFlags
+            SystemFlags                   = $systemFlags
+            DistinguishedName             = $attributeFound.DistinguishedName
+            ObjectGUID                    = $attributeFound.ObjectGUID
+            WhenCreated                   = $attributeFound.whenCreated
+            WhenChanged                   = $attributeFound.whenChanged
+        }
     }
-
-    return $schemaAttributes
 }
