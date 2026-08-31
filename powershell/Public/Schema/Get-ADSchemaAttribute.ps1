@@ -32,40 +32,40 @@
     Domain controller or domain to query. Defaults to the one selected by the ActiveDirectory module.
 
     .EXAMPLE
-    Get-ADSchemaInfo
+    Get-ADSchemaAttribute
 
     Returns every attribute of the schema with its decoded flags.
 
     .EXAMPLE
-    Get-ADSchemaInfo -Attribute 'msLAPS-Password'
+    Get-ADSchemaAttribute -Attribute 'msLAPS-Password'
 
     Returns the definition of the Windows LAPS password attribute. Its searchFlags of 904 decodes to RodcFiltered,
     NeverAudit, Confidential and PreserveOnDelete, which is the reference layout for a sensitive attribute.
 
     .EXAMPLE
-    Get-ADSchemaInfo -ConfidentialOnly
+    Get-ADSchemaAttribute -ConfidentialOnly
 
     Returns the attributes marked confidential in this forest.
 
     .EXAMPLE
-    Get-ADSchemaInfo -ConfidentialOnly | Where-Object { -not $_.CanBeConfidential }
+    Get-ADSchemaAttribute -ConfidentialOnly | Where-Object { -not $_.CanBeConfidential }
 
     Returns the attributes carrying the confidential bit while being part of the base schema, so the bit is ignored
     and the data is readable by anyone. Worth checking on every audit.
 
     .EXAMPLE
-    Get-ADSchemaInfo | Where-Object { $_.CanBeConfidential -and -not $_.Confidential -and $_.LdapDisplayName -like '*password*' }
+    Get-ADSchemaAttribute | Where-Object { $_.CanBeConfidential -and -not $_.Confidential -and $_.LdapDisplayName -like '*password*' }
 
     Returns the extended attributes that look credential related and could be marked confidential but are not.
 
     .EXAMPLE
-    Get-ADSchemaInfo | Where-Object { $_.Confidential -and -not $_.RodcFiltered }
+    Get-ADSchemaAttribute | Where-Object { $_.Confidential -and -not $_.RodcFiltered }
 
     Returns the confidential attributes that are still replicated to the read only domain controllers. Microsoft
     recommends doing both, so this is a gap worth reviewing.
 
     .EXAMPLE
-    Get-ADSchemaInfo | Export-Csv -Path 'C:\temp\ADSchemaInfo.csv' -NoTypeInformation -Encoding UTF8 -Delimiter ';'
+    Get-ADSchemaAttribute | Export-Csv -Path 'C:\temp\ADSchemaInfo.csv' -NoTypeInformation -Encoding UTF8 -Delimiter ';'
 
     Exports the full schema report.
 
@@ -80,7 +80,7 @@
     https://itpro-tips.com
 #>
 
-function Get-ADSchemaInfo {
+function Get-ADSchemaAttribute {
     [CmdletBinding()]
     [OutputType([PSCustomObject])]
     param (

@@ -69,8 +69,9 @@ PowerShellVersion = '5.1'
 # NestedModules = @()
 
 # Functions to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no functions to export.
-FunctionsToExport = 'Get-ADAttributeInfo', 'Get-ADComputerJoinedByUser', 
-               'Get-ADSchemaInfo', 'Get-ADSchemaRelatedClass', 
+FunctionsToExport = 'Get-ADComputerJoinedByUser', 'Get-ADSchemaAttribute', 
+               'Get-ADSchemaClassAttribute', 'Get-ADSchemaClassPossibleChildren', 
+               'Get-ADSchemaRelatedClass', 'Get-ADSchemaVersion', 
                'Reset-ADComputerAccountSecurity', 'Set-ADUserCommonName'
 
 # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.

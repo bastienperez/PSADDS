@@ -10,7 +10,7 @@
     rarely sits on the class you are looking at: on an extended schema it usually comes from a parent or from an
     auxiliary class added by a product such as Exchange.
 
-    Use Get-ADAttributeInfo when you want the attributes themselves and where each one comes from. This function
+    Use Get-ADSchemaClassAttribute when you want the attributes themselves and where each one comes from. This function
     answers the narrower question of which classes are involved.
 
     .PARAMETER ClassName
@@ -25,7 +25,7 @@
     Returns user, organizationalPerson, person, top and the auxiliary classes attached to any of them.
 
     .EXAMPLE
-    Get-ADSchemaRelatedClass -ClassName 'user' | ForEach-Object { Get-ADAttributeInfo -ClassName $_ }
+    Get-ADSchemaRelatedClass -ClassName 'user' | ForEach-Object { Get-ADSchemaClassAttribute -ClassName $_ }
 
     Walks the whole inheritance tree of the user class and lists the attributes of each class in it.
 

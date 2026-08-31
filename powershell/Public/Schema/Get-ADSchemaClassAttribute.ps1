@@ -42,38 +42,38 @@
     Domain controller or domain to query. Defaults to the one selected by the ActiveDirectory module.
 
     .EXAMPLE
-    Get-ADAttributeInfo -ClassName 'user'
+    Get-ADSchemaClassAttribute -ClassName 'user'
 
     Returns every attribute of the user class, with the class each one is defined on.
 
     .EXAMPLE
-    Get-ADAttributeInfo -ClassName 'user' | Where-Object { $_.Source -ne 'Direct' } | Group-Object Source
+    Get-ADSchemaClassAttribute -ClassName 'user' | Where-Object { $_.Source -ne 'Direct' } | Group-Object Source
 
     Shows which parent and auxiliary classes actually populate the user class, and how many attributes each brings.
 
     .EXAMPLE
-    Get-ADAttributeInfo -ClassName 'user' | Where-Object { $_.Required -eq 'Mandatory' }
+    Get-ADSchemaClassAttribute -ClassName 'user' | Where-Object { $_.Required -eq 'Mandatory' }
 
     Returns only the mandatory attributes, the ones a creation cannot omit.
 
     .EXAMPLE
-    Get-ADAttributeInfo -AttributeName 'mail'
+    Get-ADSchemaClassAttribute -AttributeName 'mail'
 
     Returns every class exposing the 'mail' attribute.
 
     .EXAMPLE
-    Get-ADAttributeInfo -AttributeName 'ms-Mcs-Adm*'
+    Get-ADSchemaClassAttribute -AttributeName 'ms-Mcs-Adm*'
 
     Returns the legacy LAPS attributes and the classes carrying them. Wildcards are supported.
 
     .EXAMPLE
-    Get-ADAttributeInfo -ClassName 'computer' | Where-Object { $_.Confidential }
+    Get-ADSchemaClassAttribute -ClassName 'computer' | Where-Object { $_.Confidential }
 
     Returns the attributes of the computer class that are marked confidential, which is where a LAPS password
     should show up.
 
     .EXAMPLE
-    Get-ADAttributeInfo -ClassName 'user' | Where-Object { $_.CanBeConfidential -and -not $_.Confidential }
+    Get-ADSchemaClassAttribute -ClassName 'user' | Where-Object { $_.CanBeConfidential -and -not $_.Confidential }
 
     Returns the attributes of the user class that could be marked confidential and are not. Extended attributes
     holding sensitive data usually belong here.
@@ -83,14 +83,14 @@
 
     .NOTES
     Version : 2.0 - August 2026. Migrated from the ActiveDirectory-Toolbox repository, where it was named
-    Get-ADAttributeInfov2.
+    Get-ADSchemaClassAttributev2.
     Author : Bastien Perez - ITPro-Tips (https://itpro-tips.com)
 
     .LINK
     https://itpro-tips.com
 #>
 
-function Get-ADAttributeInfo {
+function Get-ADSchemaClassAttribute {
     [CmdletBinding(DefaultParameterSetName = 'Attribute')]
     [OutputType([PSCustomObject])]
     param (
