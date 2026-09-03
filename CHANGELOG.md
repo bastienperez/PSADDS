@@ -4,6 +4,21 @@ All notable changes to PSADDS are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the module follows
 [semantic versioning](https://semver.org/).
 
+## [0.4.5] - 2026-09-03
+
+### Added
+
+- `Get-ADUserPasswordInfo`: `-SimulatedMaxPasswordAgeDays` now also adds
+  `SimulatedPasswordExpirationDateUTCRespectingNeverExpires` / `SimulatedPasswordExpiredRespectingNeverExpires`.
+  The existing `SimulatedPasswordExpirationDateUTC` / `SimulatedPasswordExpired` assume `PasswordNeverExpires`
+  is cleared everywhere at the same time as the policy change; the new pair simulates a policy-only rollout,
+  where accounts with `PasswordNeverExpires` stay unaffected since that flag overrides the policy.
+
+### Fixed
+
+- `Get-ADUserPasswordInfo`: the simulated columns were not reset per user, so a user for which the simulation
+  did not apply (no `pwdLastSet`) could silently show the values computed for the previous user in the loop.
+
 ## [0.4.4] - 2026-09-03
 
 ### Fixed

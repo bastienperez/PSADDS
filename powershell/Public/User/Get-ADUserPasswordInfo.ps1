@@ -26,8 +26,13 @@
     Domain controller to query. Defaults to the PDC emulator of the current domain.
 
     .PARAMETER SimulatedMaxPasswordAgeDays
-    Simulates a different maximum password age, in days, and adds SimulatedPasswordExpirationDateUTC and
-    SimulatedPasswordExpired to the output. Useful to measure the impact of a policy change before applying it.
+    Simulates a different maximum password age, in days, and adds four columns to the output, for two different
+    rollout scenarios:
+    - SimulatedPasswordExpirationDateUTC / SimulatedPasswordExpired: as if PasswordNeverExpires was cleared on
+      every account at the same time as the policy change. Ignores PasswordNeverExpires entirely.
+    - SimulatedPasswordExpirationDateUTCRespectingNeverExpires / SimulatedPasswordExpiredRespectingNeverExpires:
+      as if only the GPO/PSO changed and no account was touched. An account with PasswordNeverExpires stays
+      unaffected ($null / $false), since that flag on the account overrides the policy.
 
     .EXAMPLE
     Get-ADUserPasswordInfo
@@ -52,7 +57,14 @@
     .EXAMPLE
     Get-ADUserPasswordInfo -SimulatedMaxPasswordAgeDays 180 | Where-Object SimulatedPasswordExpired
 
-    Lists the users whose password would already be expired if the maximum password age was set to 180 days.
+    Lists the users whose password would already be expired if the maximum password age was set to 180 days and
+    PasswordNeverExpires was cleared everywhere.
+
+    .EXAMPLE
+    Get-ADUserPasswordInfo -SimulatedMaxPasswordAgeDays 180 | Where-Object SimulatedPasswordExpiredRespectingNeverExpires
+
+    Same simulation, but for a GPO/PSO only rollout: accounts with PasswordNeverExpires are left out, since
+    nothing here plans to touch them.
 
     .EXAMPLE
     Get-ADUserPasswordInfo | Export-Excel -Path 'C:\temp\PasswordInfo.xlsx' -AutoSize -FreezeTopRow -TableStyle Light9
@@ -264,13 +276,29 @@ function Get-ADUserPasswordInfo {
             }
         }
 
+        # Reset on every user: without it, a user for which the simulation does not apply (no pwdLastSet) would
+        # silently keep the values computed for the previous user in the loop.
+        $simulatedPasswordExpirationDateUTC = $null
+        $simulatedPasswordExpired = $false
+        $simulatedPasswordExpirationDateUTCRespectingNeverExpires = $null
+        $simulatedPasswordExpiredRespectingNeverExpires = $false
+
         if ($SimulatedMaxPasswordAgeDays -and $user.pwdLastSet -and $pwdLastSet -ne [datetime]::new(1601, 1, 1, 0, 0, 0, [DateTimeKind]::Utc)) {
-            # Calculate simulated password expiration if SimulatedMaxPasswordAgeDays is provided
-            $simulatedPasswordExpirationDateUTC = $null
-            $simulatedPasswordExpired = $false
+            # Ignores PasswordNeverExpires: the "policy change + flag cleared everywhere" scenario
             $simulatedPasswordExpirationDateUTC = $pwdLastSet.AddDays($SimulatedMaxPasswordAgeDays)
             if ($pwdLastSet -lt (Get-Date).AddDays(-$SimulatedMaxPasswordAgeDays)) {
                 $simulatedPasswordExpired = $true
+            }
+
+            # Same computation, but an account with PasswordNeverExpires stays unaffected: the "policy change
+            # only, no account touched" scenario
+            if ($user.PasswordNeverExpires) {
+                $simulatedPasswordExpirationDateUTCRespectingNeverExpires = $null
+                $simulatedPasswordExpiredRespectingNeverExpires = $false
+            }
+            else {
+                $simulatedPasswordExpirationDateUTCRespectingNeverExpires = $simulatedPasswordExpirationDateUTC
+                $simulatedPasswordExpiredRespectingNeverExpires = $simulatedPasswordExpired
             }
         }
 
@@ -304,6 +332,8 @@ function Get-ADUserPasswordInfo {
         if ($SimulatedMaxPasswordAgeDays) {
             $object | Add-Member -MemberType NoteProperty -Name 'SimulatedPasswordExpirationDateUTC' -Value $simulatedPasswordExpirationDateUTC
             $object | Add-Member -MemberType NoteProperty -Name 'SimulatedPasswordExpired' -Value $simulatedPasswordExpired
+            $object | Add-Member -MemberType NoteProperty -Name 'SimulatedPasswordExpirationDateUTCRespectingNeverExpires' -Value $simulatedPasswordExpirationDateUTCRespectingNeverExpires
+            $object | Add-Member -MemberType NoteProperty -Name 'SimulatedPasswordExpiredRespectingNeverExpires' -Value $simulatedPasswordExpiredRespectingNeverExpires
         }
 
         $passwordSettingsByUser.Add($object)
