@@ -4,6 +4,36 @@ All notable changes to PSADDS are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the module follows
 [semantic versioning](https://semver.org/).
 
+## [0.4.2] - 2026-09-03
+
+### Changed
+
+- `Get-ADUserPasswordInfo`: `-SamAccountName` is replaced by `-Identity`, which accepts a distinguished name, a
+  GUID, a SID, a sAMAccountName or a user object, exactly like `Get-ADUser -Identity`. It also now accepts
+  pipeline input (`Get-ADGroupMember -Identity 'Helpdesk' | Get-ADUserPasswordInfo`). `SamAccountName` is kept
+  as a parameter alias.
+- `Get-ADUserPasswordInfo`: warns when the PowerShell session is not elevated. Some calculated properties of
+  `Get-ADUser`, `Enabled` and `CannotChangePassword` among them, silently come back empty in a non elevated
+  session, most commonly seen when running directly on a domain controller. The function cannot work around
+  this ActiveDirectory module quirk, only flag it before the results are misread as "account disabled" or
+  "can change password".
+
+## [0.4.1] - 2026-09-03
+
+### Changed
+
+- `Get-ADComputerJoinedByUser`: returns only the non compliant computers, those created or owned by anyone other
+  than `Domain Admins` or `BUILTIN\Administrators`. Previously returned every computer of the domain, requiring
+  a manual `Where-Object` on `OwnerSID` to find the interesting ones. There is no option to get the full list
+  back, this is now the only thing the function does.
+- `Get-ADUserPasswordInfo`: adds `CannotChangePassword` to the output.
+
+### Fixed
+
+- `Get-ADUserPasswordInfo`: a user with `PasswordNeverExpires` set but who never had a password set (`pwdLastSet`
+  = 0, typically a never logged in account) reported "Password is set to be changed at 'next logon'" instead of
+  "Never expires". `PasswordNeverExpires` is now checked first, ahead of `msDS-UserPasswordExpiryTimeComputed`.
+
 ## [0.4.0] - 2026-09-03
 
 ### Added

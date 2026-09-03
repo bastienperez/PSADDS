@@ -17,8 +17,10 @@
 
     Requires the ActiveDirectory module (RSAT).
 
-    .PARAMETER SamAccountName
-    One or more sAMAccountNames. When omitted, every user of the domain is processed.
+    .PARAMETER Identity
+    One or more users. Like Get-ADUser, accepts a distinguished name (DN), a GUID, a security identifier (SID),
+    a SAM account name, a user object variable, or a user object piped in (from Get-ADUser, Get-ADGroupMember,
+    and so on). When omitted, every user of the domain is processed.
 
     .PARAMETER Server
     Domain controller to query. Defaults to the PDC emulator of the current domain.
@@ -33,9 +35,19 @@
     Reports the password state of every user of the domain.
 
     .EXAMPLE
-    Get-ADUserPasswordInfo -SamAccountName 'jdoe', 'asmith'
+    Get-ADUserPasswordInfo -Identity 'jdoe', 'asmith'
 
-    Reports the password state of two users only.
+    Reports the password state of two users, resolved by their sAMAccountName.
+
+    .EXAMPLE
+    Get-ADUserPasswordInfo -Identity 'CN=John Doe,OU=Users,DC=contoso,DC=com'
+
+    Reports the password state of a single user, resolved by its distinguished name.
+
+    .EXAMPLE
+    Get-ADGroupMember -Identity 'Helpdesk' | Get-ADUserPasswordInfo
+
+    Reports the password state of every member of the 'Helpdesk' group, piped in as user objects.
 
     .EXAMPLE
     Get-ADUserPasswordInfo -SimulatedMaxPasswordAgeDays 180 | Where-Object SimulatedPasswordExpired
@@ -48,8 +60,9 @@
 function Get-ADUserPasswordInfo {
     [CmdletBinding()]
     param (
-        [Parameter(Mandatory = $false, Position = 0)]
-        [string[]]$SamAccountName,
+        [Parameter(Mandatory = $false, Position = 0, ValueFromPipeline = $true, ValueFromPipelineByPropertyName = $true)]
+        [Alias('SamAccountName', 'DistinguishedName', 'ObjectGUID', 'SID')]
+        [object[]]$Identity,
 
         [Parameter(Mandatory = $false)]
         [Alias('DomainController')]
@@ -60,58 +73,78 @@ function Get-ADUserPasswordInfo {
         [int]$SimulatedMaxPasswordAgeDays
     )
 
-    [System.Collections.Generic.List[PSObject]]$passwordSettingsByUser = @()
+    begin {
+        [System.Collections.Generic.List[PSObject]]$passwordSettingsByUser = @()
+        [System.Collections.Generic.List[PSObject]]$usersFound = @()
+        $anyIdentityGiven = $false
 
-    if (-not $Server) {
-        # the PDC emulator is the only DC holding an up to date badPwdCount and lockout state
-        $domain = [System.DirectoryServices.ActiveDirectory.Domain]::GetCurrentDomain()
-        $Server = $domain.PdcRoleOwner.Name
-        Write-Verbose "For accurate results, the domain controller with the PDC emulator role will be used: $Server"
+        # Some calculated properties of Get-ADUser, 'Enabled' and 'CannotChangePassword' among them, come back
+        # empty in a non elevated PowerShell session, most commonly seen when running directly on a domain
+        # controller. This is a known ActiveDirectory module quirk, not something the function can work around.
+        $isElevated = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+
+        if (-not $isElevated) {
+            Write-Warning "[!] PowerShell is not running as administrator. 'Enabled', 'CannotChangePassword' and possibly other properties may come back empty. Re-run this from an elevated session if the results look incomplete."
+        }
+
+        if (-not $Server) {
+            # the PDC emulator is the only DC holding an up to date badPwdCount and lockout state
+            $domain = [System.DirectoryServices.ActiveDirectory.Domain]::GetCurrentDomain()
+            $Server = $domain.PdcRoleOwner.Name
+            Write-Verbose "For accurate results, the domain controller with the PDC emulator role will be used: $Server"
+        }
+
+        $defautPasswordPolicyObject = Get-ADDefaultDomainPasswordPolicy -Server $Server
+        $defautPasswordPolicyDays = $defautPasswordPolicyObject.MaxPasswordAge.Days
+
+        # Get-ADUserResultantPasswordPolicy is one LDAP call per user: skip it entirely when the domain has no PSO
+        $fineGrainedPasswordPolicyExists = [bool](Get-ADFineGrainedPasswordPolicy -Filter * -Server $Server -ErrorAction SilentlyContinue)
+
+        if (-not $fineGrainedPasswordPolicyExists) {
+            Write-Verbose 'No Fine Grained Password Policy in this domain, the default domain password policy applies to every user'
+        }
+
+        $attributes = 'DisplayName', 'msDS-UserPasswordExpiryTimeComputed', 'PasswordNeverExpires', 'pwdLastSet', 'Enabled', 'badPwdCount', 'badPasswordTime', 'LastLogonDate', 'PasswordNotRequired', 'CannotChangePassword', 'mail', 'UserPrincipalName'
     }
 
-    $defautPasswordPolicyObject = Get-ADDefaultDomainPasswordPolicy -Server $Server
-    $defautPasswordPolicyDays = $defautPasswordPolicyObject.MaxPasswordAge.Days
+    process {
+        if ($Identity) {
+            $anyIdentityGiven = $true
 
-    # Get-ADUserResultantPasswordPolicy is one LDAP call per user: skip it entirely when the domain has no PSO
-    $fineGrainedPasswordPolicyExists = [bool](Get-ADFineGrainedPasswordPolicy -Filter * -Server $Server -ErrorAction SilentlyContinue)
+            foreach ($id in $Identity) {
+                # A user object piped in (Get-ADUser, Get-ADGroupMember, ...) is resolved by its DistinguishedName
+                $resolvedId = if ($id -is [Microsoft.ActiveDirectory.Management.ADUser]) { $id.DistinguishedName } else { [string]$id }
 
-    if (-not $fineGrainedPasswordPolicyExists) {
-        Write-Verbose 'No Fine Grained Password Policy in this domain, the default domain password policy applies to every user'
+                Write-Verbose "Processing user: $resolvedId"
+                try {
+                    $u = Get-ADUser -Identity $resolvedId -Properties $attributes -ErrorAction Stop -Server $Server
+                }
+                catch {
+                    Write-Warning "$($_.Exception.Message)"
+                    continue
+                }
+
+                $usersFound.Add($u)
+            }
+        }
     }
 
-    $attributes = 'DisplayName', 'msDS-UserPasswordExpiryTimeComputed', 'PasswordNeverExpires', 'pwdLastSet', 'Enabled', 'badPwdCount', 'badPasswordTime', 'LastLogonDate', 'PasswordNotRequired', 'CannotChangePassword', 'mail', 'UserPrincipalName'
-
-    if ($SamAccountName) {
-        [System.Collections.Generic.List[PSObject]]$users = @()
-
-        foreach ($sam in $SamAccountName) {
-            Write-Verbose "Processing user: $sam"
+    end {
+        if (-not $anyIdentityGiven) {
+            Write-Verbose 'Processing all users'
             try {
-                $u = Get-ADUser -Identity $sam -Properties $attributes -ErrorAction Stop -Server $Server
+                $usersFound = Get-ADUser -Filter * -Properties $attributes -ErrorAction Stop -Server $Server
             }
             catch {
                 Write-Warning "$($_.Exception.Message)"
                 return
             }
-
-            $users.Add($u)
         }
-    }
-    else {
-        Write-Verbose 'Processing all users'
-        try {
-            $users = Get-ADUser -Filter * -Properties $attributes -ErrorAction Stop -Server $Server
-        }
-        catch {
-            Write-Warning "$($_.Exception.Message)"
-            return
-        }
-    }
 
     $i = 0
-    foreach ($user in $users) {
+    foreach ($user in $usersFound) {
         $i++
-        Write-Verbose "Processing user $i/$($users.Count): $($user.SamAccountName)"
+        Write-Verbose "Processing user $i/$($usersFound.Count): $($user.SamAccountName)"
         $policy = $null
         $passwordPolicyMaxPasswordAge = $null
 
@@ -248,5 +281,6 @@ function Get-ADUserPasswordInfo {
         $passwordSettingsByUser.Add($object)
     }
 
-    $passwordSettingsByUser | Sort-Object PasswordExpirationDate* -Descending
+        $passwordSettingsByUser | Sort-Object PasswordExpirationDate* -Descending
+    }
 }
