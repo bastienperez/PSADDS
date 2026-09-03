@@ -1,9 +1,11 @@
 <#
     .SYNOPSIS
-    Get the computers joined to the domain by a non built-in administrator account
+    Get the computers of the domain whose creator or owner is not one of the expected administrative groups.
 
     .DESCRIPTION
-    Get the list of computers joined to the domain by a regular user or by a delegated account.
+    Returns only the non compliant computers: those created or owned by anyone other than 'Domain Admins' or
+    'BUILTIN\Administrators'. A computer owned by one of those two groups is not returned, whatever its creator,
+    since the owner is what actually grants control over the object today.
 
     Two complementary attributes tell who created a computer object:
 
@@ -21,7 +23,7 @@
     Both the creator and the owner are returned as a name and as a SID ('CreatorName' / 'CreatorSID', 'OwnerName' /
     'OwnerSID'). The SID is read first and is always available, even when the account cannot be translated into a name
     (deleted object, unreachable trusted domain). Matching on the SID is also immune to the localization of the built-in
-    group names ('Domain Admins' vs 'Admins du domaine').
+    group names ('Domain Admins' vs 'Admins du domaine'), which is also what the compliance check itself relies on.
 
     By default both attributes are returned, so nothing is missed.
 
@@ -30,19 +32,23 @@
 
     .PARAMETER Identity
     Restrict the search to a single object. Accepts either:
-    - a computer (sAMAccountName, name or distinguished name): returns the creator and the owner of that computer;
-    - any other principal - user, gMSA, group (sAMAccountName, UPN, name or distinguished name): returns every computer
-      this principal created, matching on 'ms-DS-CreatorSID' and/or on the owner depending on -SearchBy.
+    - a computer (sAMAccountName, name or distinguished name): returns the creator and the owner of that computer,
+      and only that computer, but the compliance filter still applies: a compliant computer produces no output;
+    - any other principal - user, gMSA, group (sAMAccountName, UPN, name or distinguished name): returns every non
+      compliant computer this principal created, matching on 'ms-DS-CreatorSID' and/or on the owner depending on
+      -SearchBy.
     The type of the object is resolved automatically. Wildcards are supported.
     Accepts pipeline input, by value or by property name ('DistinguishedName', 'SamAccountName', 'Name'), so the output
     of Get-ADUser, Get-ADGroupMember or Get-ADComputer can be piped directly. Duplicates are removed from the output.
 
     .PARAMETER SearchBy
-    Which attribute is used to determine the creator:
-    - 'All' (default): both, one column each. Nothing is filtered out.
-    - 'CreatorSID': only the computers with a non-empty 'ms-DS-CreatorSID' (creations through the machine account quota).
-    - 'Owner': only the owner is resolved, the creator columns are left empty. Covers the delegated creations.
-    When an -Identity other than a computer is given, this also selects which attribute is matched against it.
+    Which attribute is used to determine the creator, and against which the compliance check runs:
+    - 'All' (default): both are resolved and returned, filtered on the owner.
+    - 'CreatorSID': only the computers with a non-empty 'ms-DS-CreatorSID' (creations through the machine account
+      quota). The LDAP filter itself already excludes the compliant ones, since this attribute is never set for a
+      creator with Domain Admin permissions: fastest mode, the security descriptor is not even retrieved.
+    - 'Owner': only the owner is resolved and used for the filter, the creator columns are left empty. Covers the
+      delegated creations, which 'CreatorSID' cannot see.
 
     .PARAMETER SearchBase
     Distinguished name of the OU to search in. Defaults to the whole domain.
@@ -53,7 +59,7 @@
     .EXAMPLE
     Get-ADComputerJoinedByUser
 
-    Returns every computer object of the domain, with its creator and its owner.
+    Returns every computer of the domain whose creator or owner is not 'Domain Admins' or 'BUILTIN\Administrators'.
 
     .EXAMPLE
     Get-ADComputerJoinedByUser -SearchBy CreatorSID
@@ -64,8 +70,8 @@
     .EXAMPLE
     Get-ADComputerJoinedByUser -SearchBy Owner
 
-    Returns every computer with its owner only. Use it to spot the computers created by a delegated account
-    (Tier 1 / Tier 2), which leave 'ms-DS-CreatorSID' empty.
+    Returns the non compliant computers with their owner only. Use it to spot the computers created by a delegated
+    account (Tier 1 / Tier 2), which leave 'ms-DS-CreatorSID' empty.
 
     .EXAMPLE
     Get-ADComputerJoinedByUser -SearchBy CreatorSID | Group-Object CreatorName | Sort-Object Count -Descending
@@ -76,24 +82,14 @@
     .EXAMPLE
     Get-ADComputerJoinedByUser | Where-Object { $null -eq $_.CreatorSID }
 
-    Returns the computers created by an administrator or by a delegated account: 'ms-DS-CreatorSID' is empty, only the
-    owner tells who did it.
+    Among the non compliant computers, returns those created by a delegated account rather than through the machine
+    account quota: 'ms-DS-CreatorSID' is empty, only the owner tells who did it.
 
     .EXAMPLE
-    $domainSID = (Get-ADDomain).DomainSID.Value
-    Get-ADComputerJoinedByUser -SearchBy Owner | Where-Object { $_.OwnerSID.Value -notin @("$domainSID-512", 'S-1-5-32-544') }
+    Get-ADComputerJoinedByUser -SearchBy Owner | Reset-ADComputerAccountSecurity -Scope Owner -Simulation
 
-    Returns the computers whose owner is neither Domain Admins (RID 512) nor BUILTIN\Administrators (S-1-5-32-544).
-    Filtering on the SID rather than on 'OwnerName' avoids any dependency on the language of the domain.
-
-    .EXAMPLE
-    $domainSID = (Get-ADDomain).DomainSID.Value
-    Get-ADComputerJoinedByUser -SearchBy Owner |
-        Where-Object { $_.OwnerSID.Value -notin @("$domainSID-512", 'S-1-5-32-544') } |
-        Reset-ADComputerAccountSecurity -Scope Owner -Simulation
-
-    Chains the audit and the remediation: every computer still owned by its creator would get its owner reset to the
-    Domain Admins group. Remove -Simulation to actually apply the change.
+    Chains the audit and the remediation: every non compliant computer would get its owner reset to the Domain
+    Admins group. Remove -Simulation to actually apply the change.
 
     .EXAMPLE
     Get-ADComputerJoinedByUser -Identity 'jdoe'
@@ -113,8 +109,8 @@
     .EXAMPLE
     Get-ADComputerJoinedByUser -Identity 'WKS0042'
 
-    Returns the creator and the owner of the computer 'WKS0042'. The trailing dollar sign of the computer
-    sAMAccountName is optional.
+    Returns the creator and the owner of the computer 'WKS0042', but only if it is not compliant: the filter applies
+    here too. The trailing dollar sign of the computer sAMAccountName is optional.
 
     .EXAMPLE
     'jdoe', 'asmith' | Get-ADComputerJoinedByUser
@@ -130,7 +126,7 @@
     .EXAMPLE
     Get-ADComputer -Filter * -SearchBase 'OU=Workstations,DC=contoso,DC=com' | Get-ADComputerJoinedByUser
 
-    Returns the creator and the owner of each computer of an OU, from an existing Get-ADComputer result.
+    Returns the non compliant computers of an OU, from an existing Get-ADComputer result.
 
     .EXAMPLE
     Get-ADComputerJoinedByUser -SearchBase 'OU=Workstations,DC=contoso,DC=com'
@@ -141,12 +137,13 @@
     .EXAMPLE
     Get-ADComputerJoinedByUser | Export-Csv -Path 'C:\temp\ComputersJoinedByUser.csv' -NoTypeInformation -Encoding UTF8 -Delimiter ';'
 
-    Exports the full report.
+    Exports the non compliance report.
 
     .OUTPUTS
-    System.Management.Automation.PSCustomObject, one per computer object, emitted as they are found.
-    If you have some tiering in your domain, you will find some computers created by accounts with tiering permissions,
-    it's not a problem.
+    System.Management.Automation.PSCustomObject, one per non compliant computer object, emitted as they are found.
+    If you have some tiering in your domain, the accounts with tiering permissions will show up here as the creator
+    or the owner of the computers they provisioned: it is not a bug, they are not 'Domain Admins' or
+    'BUILTIN\Administrators', which is exactly the point of a tiered delegation.
 
     .NOTES
     Version : 2.0 - August 2026
@@ -183,15 +180,30 @@ function Get-ADComputerJoinedByUser {
         # Keep track of the computers already returned, the same object can match several piped identities
         $processedComputersDN = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 
-        # 'CreatorSID' is the only mode that can be filtered server side, the owner lives in the security descriptor
+        # 'CreatorSID' is the only mode that can be filtered server side, the owner lives in the security descriptor.
+        # It is also already restricted to the non compliant computers: 'ms-DS-CreatorSID' is never set for a
+        # creator with Domain Admin permissions, so every match here is by definition not one of the compliant owners.
         if ($SearchBy -eq 'CreatorSID') {
             $baseLdapFilter = '(&(objectClass=computer)(mS-DS-CreatorSID=*))'
         }
         else {
             $baseLdapFilter = '(objectClass=computer)'
+
+            # The compliance check itself: a computer owned by one of those two groups is not returned.
+            try {
+                $domainAdminsSID = "$((Get-ADDomain @adParameters).DomainSID.Value)-512"
+            }
+            catch {
+                throw "Unable to resolve the domain SID, required to identify 'Domain Admins': $($_.Exception.Message)"
+            }
+
+            $compliantOwnerSIDs = [System.Collections.Generic.HashSet[string]]::new(
+                [string[]]@($domainAdminsSID, 'S-1-5-32-544'),
+                [System.StringComparer]::OrdinalIgnoreCase
+            )
         }
 
-        Write-Verbose "[i] Search computer objects (SearchBy: $SearchBy)"
+        Write-Verbose "[i] Search non compliant computer objects (SearchBy: $SearchBy)"
     }
 
     process {
@@ -292,6 +304,12 @@ function Get-ADComputerJoinedByUser {
                 if ($null -ne $owner) {
                     $ownerSID = $owner.OwnerSID
                     $ownerName = $owner.OwnerName
+                }
+
+                # The compliance check: a computer owned by 'Domain Admins' or 'BUILTIN\Administrators' is not
+                # returned, whatever its creator. Applies uniformly, including when -Identity names one computer.
+                if (($null -ne $ownerSID) -and $compliantOwnerSIDs.Contains($ownerSID.Value)) {
+                    continue
                 }
             }
 

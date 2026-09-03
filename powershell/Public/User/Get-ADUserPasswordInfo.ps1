@@ -79,7 +79,7 @@ function Get-ADUserPasswordInfo {
         Write-Verbose 'No Fine Grained Password Policy in this domain, the default domain password policy applies to every user'
     }
 
-    $attributes = 'DisplayName', 'msDS-UserPasswordExpiryTimeComputed', 'PasswordNeverExpires', 'pwdLastSet', 'Enabled', 'badPwdCount', 'badPasswordTime', 'LastLogonDate', 'PasswordNotRequired', 'mail', 'UserPrincipalName'
+    $attributes = 'DisplayName', 'msDS-UserPasswordExpiryTimeComputed', 'PasswordNeverExpires', 'pwdLastSet', 'Enabled', 'badPwdCount', 'badPasswordTime', 'LastLogonDate', 'PasswordNotRequired', 'CannotChangePassword', 'mail', 'UserPrincipalName'
 
     if ($SamAccountName) {
         [System.Collections.Generic.List[PSObject]]$users = @()
@@ -165,12 +165,14 @@ function Get-ADUserPasswordInfo {
             }
         }
 
-        if ($user.'msDS-UserPasswordExpiryTimeComputed' -eq 9223372036854775807 -and $user.PasswordNeverExpires -eq $false) {
-            $expirationDate = 'Never (no password policy in GPO or never set)'
+        if ($user.PasswordNeverExpires) {
+            # Takes priority over msDS-UserPasswordExpiryTimeComputed, which is 0 (not "never") when the
+            # account never had a password set, for instance a never logged in account.
+            $expirationDate = "Never (configured as 'Never expires')"
             $daysLeft = '-'
         }
-        elseif ($user.PasswordNeverExpires -and $user.'msDS-UserPasswordExpiryTimeComputed' -ne 0) {
-            $expirationDate = "Never (configured as 'Never expires')"
+        elseif ($user.'msDS-UserPasswordExpiryTimeComputed' -eq 9223372036854775807) {
+            $expirationDate = 'Never (no password policy in GPO or never set)'
             $daysLeft = '-'
         }
         elseif ($user.'msDS-UserPasswordExpiryTimeComputed' -eq 0) {
@@ -216,6 +218,7 @@ function Get-ADUserPasswordInfo {
             Identity                        = $user.SamAccountName
             DisplayName                     = $user.DisplayName
             Enabled                         = $user.Enabled
+            CannotChangePassword            = $user.CannotChangePassword
             UserPrincipalName               = $user.UserPrincipalName
             Mail                            = $user.mail
             PasswordLastSetUTCTime          = $pwdLastSet
