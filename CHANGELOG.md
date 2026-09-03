@@ -4,7 +4,17 @@ All notable changes to PSADDS are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the module follows
 [semantic versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.4.0] - 2026-09-03
+
+### Added
+
+- `Set-ADSchemaAttributeConfidential`: marks a schema attribute as confidential (bit 128 of `searchFlags`), or
+  removes the mark. Validates first that the bit will actually be honoured: base schema attributes
+  (`systemFlags` 0x10) and constructed attributes (`systemFlags` 0x4) are refused, since the bit is stored and
+  ignored on those, which is worse than not setting it. Writes on the schema master by default, preserves the
+  other `searchFlags` bits, and supports `-WhatIf`.
+
+## [0.3.1] - 2026-09-02
 
 ### Added
 
@@ -62,6 +72,22 @@ standalone scripts. What changed on the way:
 - `ftimeCreated`, `ftimeDeleted` and `ftimeLastOriginatingChange` were returned as strings, so sorting and
   comparing them were string operations, and a value that was never set was reported as `1601-01-01`, the zero
   of a Windows FILETIME. They are now `[datetime]` in UTC, or `$null` when never set.
+
+## [0.3.0] - 2026-08-31
+
+### Added
+
+- `Get-ADSchemaAttribute`, `Get-ADSchemaClassAttribute`, `Get-ADSchemaClassPossibleChildren`,
+  `Get-ADSchemaRelatedClass` and `Get-ADSchemaVersion`: the schema reporting functions, migrated from the
+  [ActiveDirectory-Toolbox](https://github.com/bastienperez/ActiveDirectory-Toolbox) repository and grouped
+  under a common `Get-ADSchema` prefix.
+- `ConvertFrom-ADSearchFlags`, a private helper decoding the `searchFlags` bit field once for every function
+  that reports on it.
+
+### Changed
+
+- the schema queries filter server side and stream their results, instead of collecting the whole schema
+  partition first.
 
 ## [0.1.1]
 

@@ -12,7 +12,7 @@
 RootModule = 'PSADDS.psm1'
 
 # Version number of this module.
-ModuleVersion = '0.3.1'
+ModuleVersion = '0.4.0'
 
 # Supported PSEditions
 # CompatiblePSEditions = @()
@@ -74,7 +74,7 @@ FunctionsToExport = 'Get-ADComputerJoinedByUser', 'Reset-ADComputerAccountSecuri
                'Get-ADSchemaAttribute', 'Get-ADSchemaClassAttribute', 
                'Get-ADSchemaClassPossibleChildren', 'Get-ADSchemaRelatedClass', 
                'Get-ADSchemaVersion', 'Get-ADUserPasswordInfo', 
-               'Set-ADUserCommonName'
+               'Set-ADSchemaAttributeConfidential', 'Set-ADUserCommonName'
 
 # Cmdlets to export from this module, for best performance, do not use wildcards and do not delete the entry, use an empty array if there are no cmdlets to export.
 CmdletsToExport = @()
