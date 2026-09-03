@@ -230,12 +230,14 @@ function Get-ADUserPasswordInfo {
             $daysLeft = '-'
         }
         elseif ($user.'msDS-UserPasswordExpiryTimeComputed' -eq 9223372036854775807) {
-            $expirationDate = 'Never (no password policy in GPO or never set)'
+            # The effective policy (default or FGPP) has no maximum password age, same wording as the branch
+            # below for the same underlying reason: whether the password was ever set does not change it.
+            $expirationDate = 'Never (no maximum password age in the effective policy)'
             $daysLeft = '-'
         }
         elseif ($user.'msDS-UserPasswordExpiryTimeComputed' -eq 0) {
-            if ($defautPasswordPolicyDays -eq 0) {
-                $expirationDate = 'Never (no password policy in GPO)'
+            if ($passwordPolicyMaxPasswordAge -eq 0) {
+                $expirationDate = 'Never (no maximum password age in the effective policy)'
             }
             else {
                 $expirationDate = "Password is set to be changed at 'next logon' so no way to calculate the password expiration date"

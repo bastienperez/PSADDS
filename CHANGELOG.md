@@ -4,6 +4,15 @@ All notable changes to PSADDS are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the module follows
 [semantic versioning](https://semver.org/).
 
+## [0.4.4] - 2026-09-03
+
+### Fixed
+
+- `Get-ADUserPasswordInfo`: the "never expires" reason reported in `PasswordExpirationDateUTC` no longer depends
+  on whether the password was ever set. Both cases (`pwdLastSet` set or `= 0`) now read the same
+  "Never (no maximum password age in the effective policy)", and the check uses the user's effective policy
+  (default domain policy or FGPP) instead of always the default domain policy.
+
 ## [0.4.3] - 2026-09-03
 
 ### Added
