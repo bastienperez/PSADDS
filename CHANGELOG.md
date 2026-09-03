@@ -4,6 +4,15 @@ All notable changes to PSADDS are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the module follows
 [semantic versioning](https://semver.org/).
 
+## [0.4.3] - 2026-09-03
+
+### Added
+
+- `Get-ADUserPasswordInfo`: adds `PasswordNeverExpires` as a dedicated column, previously only reflected in the
+  text of `PasswordExpirationDateUTC`.
+- `Get-ADUserPasswordInfo`: two `Export-Excel` examples (ImportExcel module, not a dependency of PSADDS), one of
+  them adding a 'Stats' worksheet with a few counts alongside the raw data.
+
 ## [0.4.2] - 2026-09-03
 
 ### Changed

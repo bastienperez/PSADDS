@@ -54,6 +54,31 @@
 
     Lists the users whose password would already be expired if the maximum password age was set to 180 days.
 
+    .EXAMPLE
+    Get-ADUserPasswordInfo | Export-Excel -Path 'C:\temp\PasswordInfo.xlsx' -AutoSize -FreezeTopRow -TableStyle Light9
+
+    Exports the report to an .xlsx file. Requires the ImportExcel module (not a dependency of PSADDS, install it
+    separately with 'Install-Module ImportExcel' if needed).
+
+    .EXAMPLE
+    $report = Get-ADUserPasswordInfo
+    $path = 'C:\temp\PasswordInfo.xlsx'
+
+    $report | Export-Excel -Path $path -WorksheetName 'Users' -AutoSize -FreezeTopRow -TableStyle Light9
+
+    [PSCustomObject][ordered]@{
+        TotalUsers           = $report.Count
+        Enabled              = ($report | Where-Object Enabled).Count
+        Disabled             = ($report | Where-Object { -not $_.Enabled }).Count
+        PasswordExpired      = ($report | Where-Object PasswordExpired).Count
+        PasswordNeverExpires = ($report | Where-Object PasswordNeverExpires).Count
+        CannotChangePassword = ($report | Where-Object CannotChangePassword).Count
+        NeverLoggedIn        = ($report | Where-Object { $_.LastLogonDate -eq 'Never logged in' }).Count
+    } | Export-Excel -Path $path -WorksheetName 'Stats' -AutoSize -TableStyle Light9
+
+    Adds a second worksheet with a few counts, alongside the raw data. Both calls target the same file and
+    default to appending a new worksheet rather than overwriting the workbook.
+
     .LINK
     https://github.com/bastienperez/PSADDS
 #>
@@ -251,6 +276,7 @@ function Get-ADUserPasswordInfo {
             Identity                        = $user.SamAccountName
             DisplayName                     = $user.DisplayName
             Enabled                         = $user.Enabled
+            PasswordNeverExpires            = $user.PasswordNeverExpires
             CannotChangePassword            = $user.CannotChangePassword
             UserPrincipalName               = $user.UserPrincipalName
             Mail                            = $user.mail
