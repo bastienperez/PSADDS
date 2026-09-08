@@ -129,8 +129,8 @@ function Set-ADUserCommonName {
             }
 
             if ($GenerateCmdlets) {
-                $serverParam = if ($adParams.ContainsKey('Server')) { " -Server '$($adParams['Server'])'" } else { '' }
-                $commands += "Rename-ADObject -Identity `"$($user.DistinguishedName)`" -NewName `"$newCN`"$serverParam"
+                $serverParam = if ($adParams.ContainsKey('Server')) { " -Server '$($adParams['Server'].Replace("'", "''"))'" } else { '' }
+                $commands += "Rename-ADObject -Identity '$($user.DistinguishedName.Replace("'", "''"))' -NewName '$($newCN.Replace("'", "''"))'$serverParam"
             }
             elseif ($PSCmdlet.ShouldProcess($user.DistinguishedName, "Rename CN to '$newCN'")) {
                 try {
