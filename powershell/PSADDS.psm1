@@ -7,7 +7,7 @@ if (-not (Get-Module -Name 'ActiveDirectory')) {
         Import-Module -Name 'ActiveDirectory' -ErrorAction Stop
     }
     catch {
-        Write-Warning 'The ActiveDirectory module could not be imported, the PSADDS functions will not work. Install RSAT (Windows) or the RSAT-AD-PowerShell feature (Windows Server).'
+        Write-Warning 'The ActiveDirectory module could not be imported; PSADDS functions that rely on it will not work. Install RSAT (Windows) or the RSAT-AD-PowerShell feature (Windows Server).'
     }
 }
 

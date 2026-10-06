@@ -4,6 +4,13 @@ All notable changes to PSADDS are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the module follows
 [semantic versioning](https://semver.org/).
 
+## [0.4.6] - 2026-10-06
+
+### Added
+
+- `Get-ADGroupMemberWinNT`: lists group member names through the WinNT ADSI provider without requiring RSAT
+  or the ActiveDirectory PowerShell module.
+
 ## [0.4.5] - 2026-09-03
 
 ### Added
