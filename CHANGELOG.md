@@ -4,7 +4,7 @@ All notable changes to PSADDS are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the module follows
 [semantic versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.4.8] - 2026-11-02
 
 ### Added
 
