@@ -4,6 +4,14 @@ All notable changes to PSADDS are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the module follows
 [semantic versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- `Get-ADOUTree`: lists the organizational units of a domain, or of one branch (`-SearchBase`), in tree order with
+  an indented `Tree` property. `-IncludeObjectCount` adds the number of objects directly in each OU. One object per
+  OU, so the result exports to CSV with its distinguished name and depth.
+
 ## [0.4.6] - 2026-10-06
 
 ### Added
