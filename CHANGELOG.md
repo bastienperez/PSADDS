@@ -4,6 +4,15 @@ All notable changes to PSADDS are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the module follows
 [semantic versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- `Get-ADObjectReplicationStatus`: compares an object across every domain controller (or the ones given with
+  `-DomainController`). One row per DC with presence (`Present`, `Missing` or `Unreachable`), `WhenCreatedUTC`, the
+  local `USNCreatedLocal` and `WhenChangedOnDCUTC`, the latest originating change (`LatestOriginatingChangeUTC`) with its originating DC, and
+  `ReplicationDelay`, the time the latest change took to reach that DC.
+
 ## [0.4.8] - 2026-11-02
 
 ### Added
