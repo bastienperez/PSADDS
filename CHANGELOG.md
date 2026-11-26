@@ -4,10 +4,17 @@ All notable changes to PSADDS are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the module follows
 [semantic versioning](https://semver.org/).
 
-## [Unreleased]
 
 ### Added
 
+- `Get-ADSubnetReverseZone`: checks that every subnet of AD Sites and Services has a DNS reverse lookup zone. Subnets
+  not aligned on an octet (IPv4) or a nibble (IPv6) are split into aligned blocks, each matched against the most
+  specific zone. `Status` is `Covered`, `Partial` or `Missing`, with the zones to create in `MissingZones`.
+  `-MissingOnly`, `-Site` and `-DnsServer` narrow the check.
+
+## [0.4.8] - 2026-11-12
+
+### Added
 - `Get-ADObjectReplicationStatus`: compares an object across every domain controller (or the ones given with
   `-DomainController`). One row per DC with presence (`Present`, `Missing` or `Unreachable`), `WhenCreatedUTC`, the
   local `USNCreatedLocal` and `WhenChangedOnDCUTC`, the latest originating change (`LatestOriginatingChangeUTC`) with its originating DC, and
